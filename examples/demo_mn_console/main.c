@@ -65,6 +65,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define SUBNET_MASK 0xFFFFFF00          // 255.255.255.0
 #define HOSTNAME    "openPOWERLINK Stack    "
 
+//#define SDO_TEST
+
+#ifdef SDO_TEST
+	#define READ_CYCLE_LEN	100
+	#define WRITE_CYCLE_LEN	50
+#endif
 //------------------------------------------------------------------------------
 // module global vars
 //------------------------------------------------------------------------------
@@ -221,7 +227,7 @@ static tEplKernel initPowerlink(UINT32 cycleLen_p, char *pszCdcFileName_p,
     initParam.m_dwAsndMaxLatency          = 150000;           // const; only required for IdentRes
     initParam.m_uiMultiplCycleCnt         = 0;                // required for error detection
     initParam.m_uiAsyncMtu                = 1500;             // required to set up max frame size
-    initParam.m_uiPrescaler               = 2;                // required for sync
+    initParam.m_uiPrescaler               = 3;                // required for sync
     initParam.m_dwLossOfFrameTolerance    = 500000;
     initParam.m_dwAsyncSlotTimeout        = 3000000;
     initParam.m_dwWaitSocPreq             = 150000;
@@ -289,6 +295,18 @@ static void loopMain(void)
 
 #endif
 
+#ifdef SDO_TEST
+    UINT pHandle;
+    static UINT uiTargetNodeId = 0x1;
+    static UINT uiTargetIndex = 0x6200;
+    static UINT uiTargetSubIndex = 0x01;
+    static BYTE bData_a[] = {0x00, 0x01, 0x02, 0x03};
+    static UINT uiSize = 1;
+    tSdoType SdoType = kSdoTypeAsnd;
+    UINT uiUserArg = 0x1234;
+    static UINT uiLoopCount = 0;
+#endif
+
     // start stack processing by sending a NMT reset command
     ret = oplk_execNmtCommand(kNmtEventSwReset);
     if (ret != kEplSuccessful)
@@ -331,7 +349,14 @@ static void loopMain(void)
                     break;
             }
         }
-
+#ifdef SDO_TEST
+        uiLoopCount++;
+        if (uiLoopCount % WRITE_CYCLE_LEN == 0)
+        {
+        	oplk_writeObject(&pHandle, uiTargetNodeId, uiTargetIndex, uiTargetSubIndex, bData_a, uiSize, SdoType, (void*)uiUserArg);
+        	PRINTF("Sent SDO Write Command...\n");
+        }
+#endif
         if( system_getTermSignalState() == TRUE )
         {
             fExit = TRUE;

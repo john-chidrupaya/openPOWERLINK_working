@@ -1183,6 +1183,11 @@ static tEplKernel updateDllConfig(tEplApiInitParam* pInitParam_p, BOOL fUpdateId
     dllConfigParam.asyncMtu = wTemp;
 
     // $$$ Prescaler
+    // 0x1F98.9: Prescaler_U16
+    obdSize = 2;
+    if ((ret = obd_readEntry(0x1F98, 9, &wTemp, &obdSize)) != kEplSuccessful)
+        return ret;
+    dllConfigParam.prescaler = wTemp;           //User value passed from application will already be updated by now in updateObd
 
 #if defined(CONFIG_INCLUDE_NMT_MN)
     // 0x1F8A.1: WaitSoCPReq_U32 in [ns]

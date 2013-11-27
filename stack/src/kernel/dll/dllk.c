@@ -1134,6 +1134,7 @@ tEplKernel dllk_setupLocalNode(tNmtState nmtState_p)
 
         // reset cycle counter
         dllkInstance_g.cycleCount = 0;
+        dllkInstance_g.prescaleCycleCount = 0;
     }
     else
     {   // it is an async-only CN -> fool changeState() to think that PRes was not expected

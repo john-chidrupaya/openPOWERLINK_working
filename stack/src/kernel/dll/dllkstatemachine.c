@@ -327,7 +327,6 @@ static tEplKernel processNmtMsFullCycle(tNmtState nmtState_p, tNmtEvent nmtEvent
     tEplKernel          ret = kEplSuccessful;
 
     UNUSED_PARAMETER(nmtState_p);
-
     switch (nmtEvent_p)
     {
         case kNmtEventDllMeSocTrig:
@@ -372,6 +371,18 @@ static tEplKernel processNmtMsFullCycle(tNmtState nmtState_p, tNmtEvent nmtEvent
             break;
 
         case kNmtEventDllMeAsndTimeout:
+
+            // SoC has been sent, update the prescaleCycleCount
+            if (dllkInstance_g.dllConfigParam.prescaler > 0)
+            {
+                dllkInstance_g.prescaleCycleCount = (dllkInstance_g.prescaleCycleCount + 1) % dllkInstance_g.dllConfigParam.prescaler;
+                // check Prescaler cycle restart
+                //  -> toggle PS flag
+                if (dllkInstance_g.prescaleCycleCount == 0)
+                {
+                    dllkInstance_g.mnFlag1 ^= EPL_FRAME_FLAG1_PS;
+                }
+            }
             // SoC has been sent, so ASnd should have been received
             // report if SoA was correctly answered
             ret = dllk_asyncFrameNotReceived(dllkInstance_g.aLastReqServiceId[dllkInstance_g.curLastSoaReq],
