@@ -75,13 +75,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* structure for input process image */
 typedef struct
 {
-   BYTE    digitalIn;
+   UINT    digitalIn;
 } PI_IN;
 
 /* structure for output process image */
 typedef struct
 {
-   BYTE    digitalOut;
+   UINT    digitalOut;
 } PI_OUT;
 
 //------------------------------------------------------------------------------
@@ -92,8 +92,8 @@ static PI_IN*   pProcessImageIn_l;
 static PI_OUT*  pProcessImageOut_l;
 
 /* application variables */
-static BYTE    digitalIn_g;                 // 8 bit digital input
-static BYTE    digitalOut_g;                // 8 bit digital output
+static UINT    digitalIn_g;                 // 8 bit digital input
+static UINT    digitalOut_g;                // 8 bit digital output
 
 //------------------------------------------------------------------------------
 // local function prototypes

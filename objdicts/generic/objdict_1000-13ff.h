@@ -42,13 +42,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         OBD_END_INDEX(0x1000)
 
         // Object 1001h : ERR_ErrorRegister_U8
-        OBD_BEGIN_INDEX_RAM(0x1001, 0x01, NULL)
+        OBD_BEGIN_INDEX_RAM(0x1001, 0x01, errhndu_cbObdAccess)
             OBD_SUBINDEX_RAM_VAR(0x1001, 0x00, kObdTypeUInt8, kObdAccR, tObdUnsigned8, ERR_ErrorRegister_U8, 0x00)
         OBD_END_INDEX(0x1001)
-
 /*
         // Object 1003h: ERR_History_ADOM
-        OBD_RAM_INDEX_RAM_VARARRAY_NOINIT(0x1003, 10, NULL, tObdDomain, kObdAccR, tObdDomain, ERR_History_ADOM)
+        OBD_RAM_INDEX_RAM_VARARRAY_NOINIT(0x1003, 10, errhndu_cbObdAccess, tObdDomain, kObdAccR, tObdDomain, ERR_History_ADOM)
 */
 
         // Object 1006h: NMT_CycleLen_U32 in [us]

@@ -73,6 +73,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define OID_DLL_MNCN_LOSSPRES_THRCNT_AU32           0x1C08
 #define OID_DLL_MNCN_LOSSPRES_THRESHOLD_AU32        0x1C09
 
+
+#define OID_DLL_ERROR_REGISTER_U8                   0x1001
+#define OID_DLL_HISTORY_ENTRY_ADOM                  0x1003
+
 //------------------------------------------------------------------------------
 // typedef
 //------------------------------------------------------------------------------

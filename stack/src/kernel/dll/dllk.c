@@ -138,6 +138,7 @@ tEplKernel dllk_addInstance(tDllkInitParam* pInitParam_p)
     dllkInstance_g.pTxBuffer = aDllkTxBuffer_l;
     dllkInstance_g.maxTxFrames = sizeof (aDllkTxBuffer_l) / sizeof (tEdrvTxBuffer);
     dllkInstance_g.dllState = kDllGsInit;               // initialize state
+    dllkInstance_g.pCurrentErrStatusBuffer = NULL;
 
 #if EPL_NMT_MAX_NODE_ID > 0
     // set up node info structure
@@ -1209,12 +1210,15 @@ tEplKernel dllk_setupLocalNode(tNmtState nmtState_p)
     {
         if ((ret = dllk_setupLocalNodeCn()) != kEplSuccessful)
             return ret;
+        if ((ret = errsigk_createErrStatusBuffers(dllkInstance_g.pCurrentErrStatusBuffer)) != kEplSuccessful)
+                return ret;
     }
 #else
     if ((ret = dllk_setupLocalNodeCn()) != kEplSuccessful)
         return ret;
+    if ((ret = errsigk_createErrStatusBuffers(&dllkInstance_g.pCurrentErrStatusBuffer)) != kEplSuccessful)
+            return ret;
 #endif
-
     // clear all asynchronous buffers
     ret = dllkcal_clearAsyncBuffer();
     if (ret != kEplSuccessful)
@@ -1386,6 +1390,7 @@ tEplKernel dllk_setupLocalNodeCn(void)
     dllkInstance_g.syncReqPrevNodeId = 0;
 #endif
 
+
     return ret;
 }
 
@@ -1520,6 +1525,18 @@ tEplKernel dllk_cleanupLocalNode(tNmtState oldNmtState_p)
     ret = EdrvUndefineRxMacAddrEntry(aMulticastMac);
     AmiSetQword48ToBe(&aMulticastMac[0], EPL_C_DLL_MULTICAST_ASND);
     ret = EdrvUndefineRxMacAddrEntry(aMulticastMac);
+
+
+#if defined(CONFIG_INCLUDE_NMT_MN)
+    if (oldNmtState_p < kNmtMsNotActive)
+    {
+        if ((ret = errsigk_cleanErrStatusBuffers(dllkInstance_g.pCurrentErrStatusBuffer)) != kEplSuccessful)
+                return ret;
+    }
+#else
+    if ((ret = errsigk_cleanErrStatusBuffers(&dllkInstance_g.pCurrentErrStatusBuffer)) != kEplSuccessful)
+            return ret;
+#endif
 
     return ret;
 }

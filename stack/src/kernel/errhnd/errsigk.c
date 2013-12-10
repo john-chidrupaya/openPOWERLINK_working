@@ -70,6 +70,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //------------------------------------------------------------------------------
 tEplKernel errsigk_allocateErrStatusBuffers(void);
 tEplKernel errsigk_deAllocateErrStatusBuffers(void);
+tEplKernel errsigk_deallocateStatusEntryQueue(tErrSigkBuffer* errSigkBuffer);
+tEplKernel errsigk_addStatusEntrytoQueue(
+                                            UINT8* m_uiNumberOfHistoryEntries,
+                                            tEplErrHistoryEntry** dstStatusQueue,
+                                            tEplErrHistoryEntry* historyEntry
+                                           );
 //============================================================================//
 //          P R I V A T E   D E F I N I T I O N S                             //
 //============================================================================//
@@ -213,13 +219,7 @@ tEplKernel errsigk_reset(void)
 
     instance_l.m_pReservedErrorBuffer->m_fDataValid = FALSE;
     instance_l.m_pReservedErrorBuffer->m_qwStaticError = 0x0;
-    instance_l.m_pReservedErrorBuffer->m_uiNumberOfHistoryEntries = 0;
-
-    if (instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry != NULL)
-    {
-        EPL_FREE(instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry);
-    }
-    EPL_MEMSET((void*)&instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry, 0, sizeof (instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry));
+    ret = errsigk_deallocateStatusEntryQueue(instance_l.m_pReservedErrorBuffer);
 
 
     currentErrSigkBuffer = (tErrSigkBuffer*) instance_l.m_ErrorBufferHead;
@@ -235,12 +235,8 @@ tEplKernel errsigk_reset(void)
 
         currentErrSigkBuffer->m_fDataValid = FALSE;
         currentErrSigkBuffer->m_qwStaticError = 0x0;
-        currentErrSigkBuffer->m_uiNumberOfHistoryEntries = 0;
-        if (currentErrSigkBuffer->m_pErrHistoryEntry != NULL)
-        {
-            EPL_FREE(currentErrSigkBuffer->m_pErrHistoryEntry);
-        }
-        EPL_MEMSET((void*)&currentErrSigkBuffer->m_pErrHistoryEntry, 0, sizeof (currentErrSigkBuffer->m_pErrHistoryEntry));
+        ret = errsigk_deallocateStatusEntryQueue(currentErrSigkBuffer);
+
         currentErrSigkBuffer = currentErrSigkBuffer->m_pNextErrorBuffer;
 
     }
@@ -319,13 +315,15 @@ tEplKernel errsigk_getErrStatusBuffer(tErrSigkBuffer** dllErrStatusBuffer, BOOL*
 
     currentErrorBuffer = instance_l.m_pCurrentErrorBuffer;
 
-    (*dllErrStatusBuffer)->m_fDataValid = FALSE; //TODO Is done while updateStatusRes, should be checked here
-    (*dllErrStatusBuffer)->m_uiOwner = kOwnerErrSigk;
-    (*dllErrStatusBuffer)->m_uiNumberOfHistoryEntries = 0;
-    if ((*dllErrStatusBuffer)->m_pErrHistoryEntry != NULL)
+    //Check if dll has updated the previous data in StatusRes
+    if ((*dllErrStatusBuffer)->m_fDataValid == TRUE)
     {
-        EPL_FREE((*dllErrStatusBuffer)->m_pErrHistoryEntry);
+        *fErrFlag = FALSE;
+        ret = kEplInvalidOperation;
+        goto Exit;
     }
+    (*dllErrStatusBuffer)->m_uiOwner = kOwnerErrSigk;
+    ret = errsigk_deallocateStatusEntryQueue(*dllErrStatusBuffer);
     (*dllErrStatusBuffer)->m_qwStaticError = 0;
 
     nextErrorBuffer->m_uiOwner = kOwnerDll;
@@ -335,15 +333,21 @@ tEplKernel errsigk_getErrStatusBuffer(tErrSigkBuffer** dllErrStatusBuffer, BOOL*
         //XXX Should I check the owner here!!
         currentErrorBuffer = currentErrorBuffer->m_pNextErrorBuffer;
         instance_l.m_Status = kBuffersAvailable;
-        //XXX Initialization not necessary
+        //XXX Reinitialization not necessary
         if ((instance_l.m_Status >= kBuffersFull) && (instance_l.m_pReservedErrorBuffer->m_fDataValid == TRUE))
         {
             currentErrorBuffer->m_pErrHistoryEntry = instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry;
-            instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry = NULL;
+            currentErrorBuffer->m_pErrStatusEntry = instance_l.m_pReservedErrorBuffer->m_pErrStatusEntry;
             currentErrorBuffer->m_qwStaticError = instance_l.m_pReservedErrorBuffer->m_qwStaticError;
-            instance_l.m_pReservedErrorBuffer->m_qwStaticError = 0x0;
             currentErrorBuffer->m_uiNumberOfHistoryEntries = instance_l.m_pReservedErrorBuffer->m_uiNumberOfHistoryEntries;
+            currentErrorBuffer->m_uiNumberOfStatusEntries = instance_l.m_pReservedErrorBuffer->m_uiNumberOfStatusEntries;
+            currentErrorBuffer->m_fDataValid = TRUE;
+
+            instance_l.m_pReservedErrorBuffer->m_qwStaticError = 0x0;
+            instance_l.m_pReservedErrorBuffer->m_pErrHistoryEntry = NULL;
+            instance_l.m_pReservedErrorBuffer->m_pErrStatusEntry = NULL;
             instance_l.m_pReservedErrorBuffer->m_uiNumberOfHistoryEntries = 0;
+            instance_l.m_pReservedErrorBuffer->m_uiNumberOfStatusEntries = 0;
             if (currentErrorBuffer->m_uiNumberOfHistoryEntries == MAX_STATUS_ENTRY_PER_BUFFER)
             {
                 instance_l.m_Status = kBuffersFull;
@@ -382,7 +386,6 @@ tEplKernel errsigk_addStatusEntry(tEplErrHistoryEntry*  historyEntry)
     tEplKernel ret;
     tErrSigkBuffer** currentErrorBuffer;
     tErrSigkBuffer* nextErrorBuffer;
-    UINT8   currentNumberOfHistoryEntries;
     tErrSigkBufferStatus    nextProbableStatus;
 
     ret = kEplSuccessful;
@@ -393,45 +396,51 @@ tEplKernel errsigk_addStatusEntry(tEplErrHistoryEntry*  historyEntry)
      * 4. Cases for which different types of status entry validation is used (M=0/ M=1, C=0/ M=1, C>0)/ variable frame length
      *
      */
-    if ((instance_l.m_Status == kReservedBufferFull) || (instance_l.m_Status == kNoBuffer))
+    switch(instance_l.m_Status)
     {
-        //XXX: entry Dropped
-        goto Exit;
-    }
-    else if (instance_l.m_Status == kBuffersFull)
-    {
-        currentErrorBuffer = &instance_l.m_pReservedErrorBuffer;
-        nextProbableStatus = kReservedBufferFull;
-    }
-    else //if (instance_l.m_Status == kBuffersAvailable || instance_l.m_Status = kBuffersEmpty)
-    {
-        //printf("No HERE -3: ErrBuf: %x\n", instance_l.m_pCurrentErrorBuffer);
-        currentErrorBuffer = &instance_l.m_pCurrentErrorBuffer;
-        instance_l.m_Status = kBuffersAvailable;
-        nextProbableStatus = kBuffersFull;
+        case kNoBuffer:
+            //entry Dropped
+            goto Exit;
+
+        case kReservedBufferFull:
+            //The reserved buffer has to be updated with the most recent status
+            currentErrorBuffer = &instance_l.m_pReservedErrorBuffer;
+            instance_l.m_Status = kBuffersFull;
+            nextProbableStatus = kReservedBufferFull;
+            ret = errsigk_deallocateStatusEntryQueue(*currentErrorBuffer);
+            break;
+
+        case kBuffersFull:
+            currentErrorBuffer = &instance_l.m_pReservedErrorBuffer;
+            nextProbableStatus = kReservedBufferFull;
+            break;
+
+        default: //kBuffersAvailable || kBuffersEmpty
+            currentErrorBuffer = &instance_l.m_pCurrentErrorBuffer;
+            instance_l.m_Status = kBuffersAvailable;
+            nextProbableStatus = kBuffersFull;
+            break;
     }
 
-    currentNumberOfHistoryEntries = (*currentErrorBuffer)->m_uiNumberOfHistoryEntries;
-
-    if (currentNumberOfHistoryEntries == 0)
+    if (historyEntry->m_wEntryType & EPL_ERR_ENTRYTYPE_EMCY)
     {
-        (*currentErrorBuffer)->m_pErrHistoryEntry = (tEplErrHistoryEntry*)EPL_MALLOC((currentNumberOfHistoryEntries + 1)
-                                                                                      * sizeof(tEplErrHistoryEntry));
+        ret = errsigk_addStatusEntrytoQueue(&(*currentErrorBuffer)->m_uiNumberOfHistoryEntries,
+                                                &(*currentErrorBuffer)->m_pErrHistoryEntry, historyEntry);
     }
-    else
+    else if (historyEntry->m_wEntryType & EPL_ERR_ENTRYTYPE_STATUS)
     {
-        //TODO: Use a generic function
-        (*currentErrorBuffer)->m_pErrHistoryEntry = (tEplErrHistoryEntry*)realloc((*currentErrorBuffer)->m_pErrHistoryEntry,
-                                                        (currentNumberOfHistoryEntries + 1) * sizeof(tEplErrHistoryEntry));
+        ret = errsigk_addStatusEntrytoQueue(&(*currentErrorBuffer)->m_uiNumberOfStatusEntries,
+                                                &(*currentErrorBuffer)->m_pErrStatusEntry, historyEntry);
     }
 
-    //TODO: Handle realloc return: if new mem is allocated or not
-    EPL_MEMCPY(((unsigned int)(*currentErrorBuffer)->m_pErrHistoryEntry + currentNumberOfHistoryEntries * sizeof(tEplErrHistoryEntry)),
-                            historyEntry, sizeof(tEplErrHistoryEntry));
+    if (ret == kEplSuccessful)
+    {
+        (*currentErrorBuffer)->m_fDataValid = TRUE;
+        (*currentErrorBuffer)->m_qwStaticError |= EPL_ERR_GENERIC;
+    }
 
-    (*currentErrorBuffer)->m_fDataValid = TRUE;
-    (*currentErrorBuffer)->m_uiNumberOfHistoryEntries += 1;
-    if ((*currentErrorBuffer)->m_uiNumberOfHistoryEntries == MAX_STATUS_ENTRY_PER_BUFFER)
+    if (((*currentErrorBuffer)->m_uiNumberOfHistoryEntries +
+            (*currentErrorBuffer)->m_uiNumberOfStatusEntries) == MAX_STATUS_ENTRY_PER_BUFFER)
     {
         nextErrorBuffer = (*currentErrorBuffer)->m_pNextErrorBuffer;
         if ((nextErrorBuffer == NULL) || (nextErrorBuffer->m_uiOwner == kOwnerDll))
@@ -442,6 +451,57 @@ tEplKernel errsigk_addStatusEntry(tEplErrHistoryEntry*  historyEntry)
         {
             (*currentErrorBuffer) = nextErrorBuffer;
         }
+    }
+
+Exit:
+    return ret;
+}
+
+//------------------------------------------------------------------------------
+/**
+\brief    updates the static error bit field in kernel error signaller module
+
+The function updates the static error bit field in the error status buffer
+when triggered by a change in OBD. If the current buffer already holds an
+invalidated bit field, this data  is updated in the Emergency Buffer
+
+\param      pEvent_p                pointer to the event structure
+                                    holding the new data
+
+\return Returns a tEplKernel error code.
+
+\ingroup module_errsigk
+*/
+//------------------------------------------------------------------------------
+
+tEplKernel errsigk_updateStaticErrorBitField(tEplEvent* pEvent_p)
+{
+    tEplKernel      ret;
+    tErrSigkBuffer* currentErrorBuffer;
+    UINT8           staticErrorBitField;
+
+    ret = kEplSuccessful;
+
+
+    if (instance_l.m_Status == kNoBuffer)
+    {
+        //Entry dropped
+        goto Exit;
+    }
+
+    currentErrorBuffer = instance_l.m_pCurrentErrorBuffer;
+
+    //Check if the current buffer holds any error bit field
+    if (currentErrorBuffer->m_qwStaticError & ~EPL_ERR_GENERIC)
+    {
+        currentErrorBuffer = instance_l.m_pReservedErrorBuffer;
+    }
+    staticErrorBitField = *((UINT8*)pEvent_p->m_pArg);  //XXX: Unused pEvent_p->m_uiSize
+
+    //Check if the passed error bit field is valid
+    if (staticErrorBitField & EPL_ERR_GENERIC)
+    {
+        currentErrorBuffer->m_qwStaticError = staticErrorBitField;
     }
 
 Exit:
@@ -544,6 +604,8 @@ Exit:
 //============================================================================//
 //            P R I V A T E   F U N C T I O N S                               //
 //============================================================================//
+/// \name    private functions
+/// \{
 
 //------------------------------------------------------------------------------
 /**
@@ -577,10 +639,11 @@ tEplKernel errsigk_allocateErrStatusBuffers(void)
     currentErrSigkBuffer->m_fDataValid = FALSE;
     currentErrSigkBuffer->m_qwStaticError = 0x0;
     currentErrSigkBuffer->m_uiNumberOfHistoryEntries = 0;
+    currentErrSigkBuffer->m_uiNumberOfStatusEntries = 0;
     currentErrSigkBuffer->m_uiOwner = kOwnerReserved;
     currentErrSigkBuffer->m_pNextErrorBuffer = NULL;
-    EPL_MEMSET((void*)&currentErrSigkBuffer->m_pErrHistoryEntry, 0, sizeof (currentErrSigkBuffer->m_pErrHistoryEntry));
-
+    currentErrSigkBuffer->m_pErrHistoryEntry = NULL;
+    currentErrSigkBuffer->m_pErrStatusEntry = NULL;
     instance_l.m_pReservedErrorBuffer = currentErrSigkBuffer;
 
     for (loopCount = 1; loopCount < MAX_STATUS_FRAMES; loopCount++)
@@ -596,9 +659,10 @@ tEplKernel errsigk_allocateErrStatusBuffers(void)
         currentErrSigkBuffer->m_fDataValid = FALSE;
         currentErrSigkBuffer->m_qwStaticError = 0x0;
         currentErrSigkBuffer->m_uiNumberOfHistoryEntries = 0;
+        currentErrSigkBuffer->m_uiNumberOfStatusEntries = 0;
         currentErrSigkBuffer->m_uiOwner = kOwnerErrSigk;
-        EPL_MEMSET((void*)&currentErrSigkBuffer->m_pErrHistoryEntry, 0, sizeof (currentErrSigkBuffer->m_pErrHistoryEntry));
-
+        currentErrSigkBuffer->m_pErrHistoryEntry = NULL;
+        currentErrSigkBuffer->m_pErrStatusEntry = NULL;
         if (loopCount == 1)
         {
             instance_l.m_ErrorBufferHead = currentErrSigkBuffer;
@@ -646,6 +710,7 @@ tEplKernel errsigk_deAllocateErrStatusBuffers(void)
 
     if (currentErrSigkBuffer != NULL)
     {
+       ret = errsigk_deallocateStatusEntryQueue(currentErrSigkBuffer);
        EPL_FREE(currentErrSigkBuffer);
     }
     instance_l.m_pReservedErrorBuffer = NULL;
@@ -663,12 +728,120 @@ tEplKernel errsigk_deAllocateErrStatusBuffers(void)
 
         if (currentErrSigkBuffer != NULL)
         {
+           ret = errsigk_deallocateStatusEntryQueue(currentErrSigkBuffer);
            EPL_FREE(currentErrSigkBuffer);
         }
         currentErrSigkBuffer = nextErrSigkBuffer;
     }
 
-Exit:
-
     return ret;
 }
+
+
+//------------------------------------------------------------------------------
+/**
+\brief    allocates status entry queues and adds status entry
+
+The function allocates the error status entry queues in the error signaller
+module buffers and updates the status entries
+
+\param      m_uiNumberOfHistoryEntries      pointer to the number of error status
+                                            entries in the error signal buffer
+\param      dstStatusQueue                  pointer to the status entry queue
+                                            in the error signal buffer which has
+                                            to be updated
+\param      historyEntry                    pointer to the source history
+                                            event structure
+
+\return Returns a tEplKernel error code.
+
+\ingroup module_errsigk
+*/
+//------------------------------------------------------------------------------
+
+tEplKernel errsigk_addStatusEntrytoQueue(
+                                            UINT8* m_uiNumberOfHistoryEntries,
+                                            tEplErrHistoryEntry** dstStatusQueue,
+                                            tEplErrHistoryEntry* historyEntry
+                                            )
+{
+        tEplKernel      ret;
+        tEplErrHistoryEntry* tempStatusQueue;
+        UINT8 currentNumberOfHistoryEntries;
+
+        ret = kEplSuccessful;
+
+        currentNumberOfHistoryEntries = (*m_uiNumberOfHistoryEntries);
+
+        if ((*dstStatusQueue) == NULL)
+        {
+            currentNumberOfHistoryEntries = 0;
+            tempStatusQueue = (tEplErrHistoryEntry*)EPL_MALLOC((currentNumberOfHistoryEntries + 1)
+                                                                                            * sizeof(tEplErrHistoryEntry));
+        }
+        else
+        {
+           //TODO: Use a generic function
+            tempStatusQueue = (tEplErrHistoryEntry*)realloc((*dstStatusQueue),
+                                                              (currentNumberOfHistoryEntries + 1) * sizeof(tEplErrHistoryEntry));
+        }
+
+        //TODO: Handle realloc return: if new mem is allocated or not
+        if (tempStatusQueue == NULL)
+        {
+            ret = kEplNoResource;
+            goto Exit;
+        }
+        (*dstStatusQueue) = tempStatusQueue;
+        EPL_MEMCPY((void*)((unsigned int)(*dstStatusQueue) + currentNumberOfHistoryEntries * sizeof(tEplErrHistoryEntry)),
+                                  historyEntry, sizeof(tEplErrHistoryEntry));
+
+        currentNumberOfHistoryEntries += 1;
+        (*m_uiNumberOfHistoryEntries) = currentNumberOfHistoryEntries;
+
+Exit:
+         return ret;
+
+}
+
+
+//------------------------------------------------------------------------------
+/**
+\brief    deallocates the buffers for status entries in error signaller module
+
+The function deallocates the error status entry queues in the error signaller
+module buffers
+
+\param      errSigkBuffer       pointer to the error sigalling module buffer
+                                of which, the queues would be deallocated
+
+\return Returns a tEplKernel error code.
+
+\ingroup module_errsigk
+*/
+//------------------------------------------------------------------------------
+
+tEplKernel errsigk_deallocateStatusEntryQueue(tErrSigkBuffer* errSigkBuffer)
+{
+        tEplKernel      ret;
+
+        ret = kEplSuccessful;
+
+        if (errSigkBuffer->m_pErrHistoryEntry != NULL)
+         {
+             EPL_FREE(errSigkBuffer->m_pErrHistoryEntry);
+         }
+        errSigkBuffer->m_pErrHistoryEntry = NULL;
+        errSigkBuffer->m_uiNumberOfHistoryEntries = 0;
+
+         if (errSigkBuffer->m_pErrStatusEntry != NULL)
+         {
+             EPL_FREE(errSigkBuffer->m_pErrStatusEntry);
+         }
+         errSigkBuffer->m_pErrStatusEntry = NULL;
+         errSigkBuffer->m_uiNumberOfStatusEntries = 0;
+
+         return ret;
+
+}
+/// \}

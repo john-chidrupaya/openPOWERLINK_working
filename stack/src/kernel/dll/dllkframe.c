@@ -643,6 +643,8 @@ tEplKernel dllk_updateFrameStatusRes(tEdrvTxBuffer* pTxBuffer_p, tNmtState nmtSt
 {
     tEplKernel      ret = kEplSuccessful;
     tEplFrame*      pTxFrame;
+    UINT32           sizeOfHistoryEntryField;
+    UINT32           sizeOfStatusEntryField;
 
     pTxFrame = (tEplFrame *) pTxBuffer_p->m_pbBuffer;
 
@@ -650,6 +652,40 @@ tEplKernel dllk_updateFrameStatusRes(tEdrvTxBuffer* pTxBuffer_p, tNmtState nmtSt
     AmiSetByteToLe(&pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_bNmtStatus, (UINT8)nmtState_p);
     AmiSetByteToLe(&pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_bFlag2, dllkInstance_g.flag2);
     AmiSetByteToLe(&pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_bFlag1, dllkInstance_g.flag1);
+
+    pTxBuffer_p->m_uiTxMsgLen = EPL_C_DLL_MINSIZE_STATUSRES;
+    if (dllkInstance_g.pCurrentErrStatusBuffer != NULL)
+    {
+        sizeOfHistoryEntryField = dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfHistoryEntries
+                                                                        * sizeof (tEplErrHistoryEntry);
+        sizeOfStatusEntryField = dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfStatusEntries
+                * sizeof (tEplErrHistoryEntry);
+
+        EPL_MEMSET(pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry, 0,
+                                                    sizeOfStatusEntryField + sizeOfHistoryEntryField);
+            if (dllkInstance_g.pCurrentErrStatusBuffer->m_fDataValid == TRUE)
+            {
+    //TODO Frame transfer: memcpy to AmiSetByteToLe
+                if(dllkInstance_g.pCurrentErrStatusBuffer->m_pErrStatusEntry != NULL)
+                {
+                    EPL_MEMCPY(pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry,
+                                        dllkInstance_g.pCurrentErrStatusBuffer->m_pErrStatusEntry,
+                                                                                    sizeOfStatusEntryField);
+                }
+                if(dllkInstance_g.pCurrentErrStatusBuffer->m_pErrHistoryEntry != NULL)
+                {
+                    EPL_MEMCPY((pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry
+                          + sizeOfStatusEntryField),dllkInstance_g.pCurrentErrStatusBuffer->m_pErrHistoryEntry,
+                                                                                       sizeOfHistoryEntryField);
+                }
+                dllkInstance_g.pCurrentErrStatusBuffer->m_fDataValid = FALSE;
+                if (sizeOfStatusEntryField + sizeOfHistoryEntryField > 2)
+                {
+                    pTxBuffer_p->m_uiTxMsgLen += (sizeOfHistoryEntryField + sizeOfStatusEntryField
+                                                                    - 2 * sizeof (tEplErrHistoryEntry));
+                }
+            }
+    }
 
 #if (EDRV_AUTO_RESPONSE != FALSE)
     if (nmtState_p < kNmtMsNotActive)
@@ -1094,6 +1130,7 @@ tEplKernel dllk_createTxFrame (UINT* pHandle_p, UINT* pFrameSize_p,
         if (pTxBuffer->m_pbBuffer != NULL)
         {   // entry is not free
             ret = kEplEdrvNoFreeBufEntry;
+            printf("No Buffer\n");
             goto Exit;
         }
 

@@ -94,6 +94,7 @@ SET (LIB_KERNEL_SOURCES
      ${KERNEL_SOURCE_DIR}/pdo/pdokcalmem-local.c
      ${KERNEL_SOURCE_DIR}/pdo/pdokcalsync-null.c
      ${KERNEL_SOURCE_DIR}/errhnd/errhndk.c
+     ${KERNEL_SOURCE_DIR}/errhnd/errsigk.c
      ${KERNEL_SOURCE_DIR}/errhnd/errhndkcal-local.c
      ${KERNEL_SOURCE_DIR}/ctrl/ctrlk.c
      ${KERNEL_SOURCE_DIR}/ctrl/ctrlkcal-direct.c

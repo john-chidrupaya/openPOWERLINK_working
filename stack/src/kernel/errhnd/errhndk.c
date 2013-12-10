@@ -188,7 +188,9 @@ tEplKernel errhndk_process(tEplEvent* pEvent_p)
         case kEplEventTypeDllError:
             ret = handleDllErrors(pEvent_p);
             break;
-
+        case kEplEventTypeErrSigkStaticErrorBit:
+            ret = errsigk_updateStaticErrorBitField(pEvent_p);
+            break;
         // unknown type
         default:
             ret = kEplInvalidEvent;
@@ -966,7 +968,6 @@ static tEplKernel generateHistoryEntry(UINT16 errorCode_p, tEplNetTime netTime_p
     historyEntry.m_wErrorCode = errorCode_p;
     historyEntry.m_TimeStamp = netTime_p;
     memset (historyEntry.m_abAddInfo, 0, sizeof(historyEntry.m_abAddInfo));
-
     ret = postHistoryEntryEvent(&historyEntry);
     return ret;
 }

@@ -91,6 +91,17 @@
 #define EPL_FRAME_FLAG2_PR          0x38    // priority of requested asynch. frame      (PRes, StatusRes, IdentRes)
 #define EPL_FRAME_FLAG2_PR_SHIFT    3       // shift of priority of requested asynch. frame
 
+
+// static error bit field in 0x1001h
+#define EPL_ERR_GENERIC                 0x01
+#define EPL_ERR_CURRENT                 0x02
+#define EPL_ERR_VOLT                    0x04
+#define EPL_ERR_TEMP                    0x08
+#define EPL_ERR_COM                     0x10
+#define EPL_ERR_DEV                     0x20
+#define EPL_ERR_RSVD                    0x40
+#define EPL_ERR_MFC                     0x80
+
 // error history/status entry types
 #define EPL_ERR_ENTRYTYPE_STATUS        0x8000
 #define EPL_ERR_ENTRYTYPE_HISTORY       0x0000

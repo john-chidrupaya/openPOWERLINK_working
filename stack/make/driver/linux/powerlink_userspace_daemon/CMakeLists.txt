@@ -69,6 +69,7 @@ SET (DAEMON_KERNEL_SOURCES
      ${KERNEL_SOURCE_DIR}/pdo/pdokcal.c
      ${KERNEL_SOURCE_DIR}/pdo/pdokcal-triplebufshm.c
      ${KERNEL_SOURCE_DIR}/errhnd/errhndk.c
+     ${KERNEL_SOURCE_DIR}/errhnd/errsigk.c
      ${KERNEL_SOURCE_DIR}/errhnd/errhndkcal-posixshm.c
      ${KERNEL_SOURCE_DIR}/ctrl/ctrlk.c
      ${KERNEL_SOURCE_DIR}/ctrl/ctrlkcal-mem.c

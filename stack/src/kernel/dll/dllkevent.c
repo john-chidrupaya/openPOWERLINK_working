@@ -134,6 +134,18 @@ tEplKernel dllk_process(tEplEvent* pEvent_p)
 
         case kEplEventTypeDllkFlag1:
             // trigger update of StatusRes on SoA, because Flag 1 was changed
+        #if defined(CONFIG_INCLUDE_NMT_MN)
+            if ((oldNmtState_p < kNmtMsNotActive) && ((dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC) != 0))
+            {
+                ret = errsigk_reset();
+                dllkInstance_g.flag1 &= ~EPL_FRAME_FLAG1_EN;
+            }
+        #else
+            if ((dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC) != 0)
+            {
+                ret = errsigk_reset();
+            }
+        #endif
             if (dllkInstance_g.updateTxFrame == DLLK_UPDATE_NONE)
                 dllkInstance_g.updateTxFrame = DLLK_UPDATE_STATUS;
             break;
@@ -878,6 +890,7 @@ static tEplKernel processSyncCn(tNmtState nmtState_p, BOOL fReadyFlag_p)
     tEplFrame*          pTxFrame;
     tEdrvTxBuffer*      pTxBuffer;
     tFrameInfo          FrameInfo;
+    BOOL                fErrFlag;
     UINT                nextTxBufferOffset = dllkInstance_g.curTxBufferOffsetCycle ^ 1;
 
     // local node is CN, update only the PRes
@@ -894,6 +907,21 @@ static tEplKernel processSyncCn(tNmtState nmtState_p, BOOL fReadyFlag_p)
         ret = dllk_processTpdo(&FrameInfo, fReadyFlag_p);
         if (ret != kEplSuccessful)
             return ret;
+
+        if ((!!(dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EN) == !!(dllkInstance_g.mnFlag1 & EPL_FRAME_FLAG1_EA))
+                && !(dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC))
+        {
+            ret = errsigk_getErrStatusBuffer(&dllkInstance_g.pCurrentErrStatusBuffer, &fErrFlag);
+            if (ret != kEplSuccessful)
+                return ret;
+            else if (fErrFlag == TRUE)
+            {
+                dllkInstance_g.flag1 ^= EPL_FRAME_FLAG1_EN;
+                ret = dllk_postEvent(kEplEventTypeDllkFlag1);
+                if (ret != kEplSuccessful)
+                    return ret;
+            }
+        }
 
 //      BENCHMARK_MOD_02_TOGGLE(7);
 
@@ -935,7 +963,7 @@ static tEplKernel processSyncMn(tNmtState nmtState_p, BOOL fReadyFlag_p)
     pTxFrame = (tEplFrame *)pTxBuffer->m_pbBuffer;
     // Set SoC relative time
     AmiSetQword64ToLe( &pTxFrame->m_Data.m_Soc.m_le_RelativeTime, dllkInstance_g.relativeTime);
-    AmiSetQword64ToLe( &pTxFrame->m_Data.m_Soc.m_le_bFlag1, dllkInstance_g.mnFlag1 & (EPL_FRAME_FLAG1_PS | EPL_FRAME_FLAG1_MC));
+    AmiSetByteToLe( &pTxFrame->m_Data.m_Soc.m_le_bFlag1, dllkInstance_g.mnFlag1 & (EPL_FRAME_FLAG1_PS | EPL_FRAME_FLAG1_MC));
 
    dllkInstance_g.relativeTime += dllkInstance_g.dllConfigParam.cycleLen;
 

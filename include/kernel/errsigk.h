@@ -70,10 +70,12 @@ typedef struct ErrSigkBuffer
 {
     BOOL                    m_fDataValid;                       ///< Data with in the buffer is valid or invalid
     tErrBufOwner            m_uiOwner;                          ///< Owner of the buffer
-    UINT8                   m_uiNumberOfHistoryEntries;         ///< Number of Error Entries in the current buffer
+    UINT8                   m_uiNumberOfHistoryEntries;         ///< Number of Error Entries from Emergency queue in the current buffer
+    UINT8                   m_uiNumberOfStatusEntries;          ///< Number of Error Entries in the current buffer
     struct ErrSigkBuffer*   m_pNextErrorBuffer;                 ///< pointer to Next StatusEntry Buffer structure
     QWORD                   m_qwStaticError;                    ///< static error bit field
     tEplErrHistoryEntry*    m_pErrHistoryEntry;                 ///< History entry
+    tEplErrHistoryEntry*    m_pErrStatusEntry;                 ///< Status entry
 }PACK_STRUCT tErrSigkBuffer;
 
 //------------------------------------------------------------------------------
@@ -94,7 +96,7 @@ tEplKernel errsigk_createErrStatusBuffers(tErrSigkBuffer** dllErrStatusBuffer);
 //deallocate buffers from dll
 tEplKernel errsigk_cleanErrStatusBuffers(tErrSigkBuffer** dllErrStatusBuffer);
 
-//Set Error Status
+//Add status entry to current Error Status
 tEplKernel errsigk_addStatusEntry(tEplErrHistoryEntry*  historyEntry);
 
 //Get Error Status
@@ -102,6 +104,10 @@ tEplKernel errsigk_getErrStatusBuffer(tErrSigkBuffer** dllErrStatusBuffer, BOOL*
 
 // delete instance
 tEplKernel errsigk_exit(void);
+
+//update static error bit field
+
+tEplKernel errsigk_updateStaticErrorBitField(tEplEvent* pEvent_p);
 /*
 
 // processes error events
