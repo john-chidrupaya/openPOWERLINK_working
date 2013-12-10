@@ -115,6 +115,7 @@ SET(MODULE_SOURCE_FILES
     ${KERNEL_SOURCE_DIR}/pdo/pdokcalmem-linuxkernel.c
     ${KERNEL_SOURCE_DIR}/pdo/pdokcalsync-linuxkernel.c
     ${KERNEL_SOURCE_DIR}/errhnd/errhndk.c
+    ${KERNEL_SOURCE_DIR}/errhnd/errsigk.c
     ${KERNEL_SOURCE_DIR}/errhnd/errhndkcal-local.c
     ${KERNEL_SOURCE_DIR}/veth/veth-linuxkernel.c
     ${ARCH_SOURCE_DIR}/linux/SocketLinuxKernel.c

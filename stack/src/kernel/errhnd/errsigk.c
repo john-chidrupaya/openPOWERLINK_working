@@ -38,6 +38,17 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ------------------------------------------------------------------------------*/
 
+//TODO:
+    /* 1. The entry type check is to be done error handler 2. Handle the Error Status Bit field  //DONE
+     * 2. Status and History entry order i.e. History entries from Emergency queue are to be kept after status entries //DONE in updateStatusRes
+     * 3. CN supported items: case 1/ case 2/ case 3/ case 4
+     * 4. Cases for which different types of status entry validation is used (M=0/ M=1, C=0/ M=1, C>0)/ variable frame length
+     * 5. Where Error handler module passes the status entry to Error signaller module //FIXME priority
+     * 6. Divide the modules for MN and CN //DONE
+     *          and also as per modules included in EplCfg //FIXME priority
+     *
+     */
+
 //------------------------------------------------------------------------------
 // includes
 //------------------------------------------------------------------------------
@@ -205,7 +216,7 @@ tEplKernel errsigk_reset(void)
     tEplKernel      ret;
     UINT8           loopCount;
     tErrSigkBuffer* currentErrSigkBuffer;
-    //printf("Entered %s\n", __func__);
+
     ret = kEplSuccessful;
     //TODO: Reset Error queue and error objects: requires posting event to user side.
 
@@ -240,7 +251,7 @@ tEplKernel errsigk_reset(void)
         currentErrSigkBuffer = currentErrSigkBuffer->m_pNextErrorBuffer;
 
     }
-    //printf("Exit %s\n", __func__);
+
 Exit:
     return ret;
 }
@@ -283,16 +294,15 @@ tEplKernel errsigk_getErrStatusBuffer(tErrSigkBuffer** dllErrStatusBuffer, BOOL*
         netTime.m_dwSec = 0;
         historyEntry.m_wEntryType = EPL_ERR_ENTRYTYPE_MODE_OCCURRED |
                                     EPL_ERR_ENTRYTYPE_PROF_EPL |
-                                    EPL_ERR_ENTRYTYPE_HISTORY;
+                                    EPL_ERR_ENTRYTYPE_HISTORY |
+                                    EPL_ERR_ENTRYTYPE_EMCY;
 
         historyEntry.m_wErrorCode = EPL_E_DLL_CRC_TH;
         historyEntry.m_TimeStamp = netTime;
         memset (historyEntry.m_abAddInfo, 0, sizeof(historyEntry.m_abAddInfo));
 
 
-        //printf("Set Err\n");
         ret = errsigk_addStatusEntry(&historyEntry);
-        //printf("Err Set\n");
     }
 
 #endif
@@ -389,13 +399,7 @@ tEplKernel errsigk_addStatusEntry(tEplErrHistoryEntry*  historyEntry)
     tErrSigkBufferStatus    nextProbableStatus;
 
     ret = kEplSuccessful;
-//TODO:
-    /* 1. The entry type check is to be done error handler 2. Handle the Error Status Bit field
-     * 2. Status and History entry order i.e. History entries from Emergency queue are to be kept after status entries
-     * 3. CN supported items: case 1/ case 2/ case 3/ case 4
-     * 4. Cases for which different types of status entry validation is used (M=0/ M=1, C=0/ M=1, C>0)/ variable frame length
-     *
-     */
+
     switch(instance_l.m_Status)
     {
         case kNoBuffer:
@@ -431,6 +435,10 @@ tEplKernel errsigk_addStatusEntry(tEplErrHistoryEntry*  historyEntry)
     {
         ret = errsigk_addStatusEntrytoQueue(&(*currentErrorBuffer)->m_uiNumberOfStatusEntries,
                                                 &(*currentErrorBuffer)->m_pErrStatusEntry, historyEntry);
+    }
+    else
+    {
+        goto Exit;
     }
 
     if (ret == kEplSuccessful)
@@ -528,7 +536,7 @@ tEplKernel errsigk_createErrStatusBuffers(tErrSigkBuffer** dllErrStatusBuffer)
     tEplKernel      ret;
 
     ret = kEplSuccessful;
-    //printf("Entered %s\n", __func__);
+
     if (instance_l.m_Status != kNoBuffer)
     {
         ret = kEplInvalidEvent;
@@ -544,7 +552,6 @@ tEplKernel errsigk_createErrStatusBuffers(tErrSigkBuffer** dllErrStatusBuffer)
     (*dllErrStatusBuffer) = instance_l.m_ErrorBufferHead;
     (*dllErrStatusBuffer)->m_uiOwner = kOwnerDll;
     instance_l.m_pCurrentErrorBuffer = (*dllErrStatusBuffer)->m_pNextErrorBuffer;
-    //printf("Exit %s\n", __func__);
 
 Exit:
     return ret;
@@ -573,7 +580,7 @@ tEplKernel errsigk_cleanErrStatusBuffers(tErrSigkBuffer** dllErrStatusBuffer)
     tEplKernel      ret;
 
     ret = kEplSuccessful;
-    //printf("Entered %s\n", __func__);
+
     if (instance_l.m_Status == kNoBuffer)
     {
         ret = kEplInvalidEvent;
@@ -589,7 +596,6 @@ tEplKernel errsigk_cleanErrStatusBuffers(tErrSigkBuffer** dllErrStatusBuffer)
     (*dllErrStatusBuffer) = NULL;
     instance_l.m_ErrorBufferHead = NULL;
     instance_l.m_pCurrentErrorBuffer = NULL;
-    //printf("Exit %s\n", __func__);
 
 Exit:
     return ret;

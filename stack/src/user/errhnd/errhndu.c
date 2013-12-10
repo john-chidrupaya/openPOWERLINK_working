@@ -232,6 +232,21 @@ tEplKernel errhndu_cbObdAccess(tObdCbParam MEM* pParam_p)
             {
                 case OID_DLL_HISTORY_ENTRY_ADOM:
                     //TODO: is already handled directly in kernel; user part to be done if necessary
+                    if (pParam_p->obdEvent == kObdEvPreWrite)
+                    {
+                            //Nothing to do
+                    }
+                    else if (pParam_p->obdEvent == kObdEvPostWrite)
+                    {
+                        /*//TODO check if this is from Emergency queue
+                        tEplEvent   event;
+                        event.m_EventSink = kEplEventSourceErrk;
+                        event.m_EventType = kEplEventTypeErrSigkStatusEntry;
+                        event.m_pArg = pParam_p->pArg;
+                        event.m_uiSize = sizeof(UINT8);
+                        ret = eventu_postEvent(&event);
+                        */
+                    }
                     break;
                 case OID_DLL_ERROR_REGISTER_U8:
                     if (pParam_p->obdEvent == kObdEvPreWrite)

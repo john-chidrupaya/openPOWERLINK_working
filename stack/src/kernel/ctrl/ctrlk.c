@@ -426,7 +426,6 @@ static tEplKernel shutdownStack(void)
 
     eventk_exit();
     errhndk_exit();
-    errsigk_exit();
 
     return kEplSuccessful;
 }

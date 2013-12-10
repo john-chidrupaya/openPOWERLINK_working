@@ -133,9 +133,10 @@ tEplKernel dllk_process(tEplEvent* pEvent_p)
             break;
 
         case kEplEventTypeDllkFlag1:
-            // trigger update of StatusRes on SoA, because Flag 1 was changed
+            //reinitialise the error signalling module after first SOA was received.
         #if defined(CONFIG_INCLUDE_NMT_MN)
-            if ((oldNmtState_p < kNmtMsNotActive) && ((dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC) != 0))
+            if ((oldNmtState_p < kNmtMsNotActive) && (oldNmtState_p >= kNmtCsPreOperational1)
+                    && ((dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC) != 0)) //&& (oldNmtState_p >= kNmtGsInitialising)
             {
                 ret = errsigk_reset();
                 dllkInstance_g.flag1 &= ~EPL_FRAME_FLAG1_EN;
@@ -144,8 +145,10 @@ tEplKernel dllk_process(tEplEvent* pEvent_p)
             if ((dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC) != 0)
             {
                 ret = errsigk_reset();
+                dllkInstance_g.flag1 &= ~EPL_FRAME_FLAG1_EN;
             }
         #endif
+            // trigger update of StatusRes on SoA, because Flag 1 was changed
             if (dllkInstance_g.updateTxFrame == DLLK_UPDATE_NONE)
                 dllkInstance_g.updateTxFrame = DLLK_UPDATE_STATUS;
             break;
@@ -908,6 +911,7 @@ static tEplKernel processSyncCn(tNmtState nmtState_p, BOOL fReadyFlag_p)
         if (ret != kEplSuccessful)
             return ret;
 
+        //poll the error signalling module for errors after initialisation is done
         if ((!!(dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EN) == !!(dllkInstance_g.mnFlag1 & EPL_FRAME_FLAG1_EA))
                 && !(dllkInstance_g.flag1 & EPL_FRAME_FLAG1_EC))
         {

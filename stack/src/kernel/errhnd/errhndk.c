@@ -141,6 +141,7 @@ tEplKernel errhndk_init(void)
     instance_l.dllErrorEvents = 0;
 
     ret = errhndkcal_init();
+    ret = errsigk_init();
     return ret;
 }
 
@@ -158,6 +159,7 @@ The function shuts down the kernel error handler module.
 tEplKernel errhndk_exit()
 {
     errhndkcal_exit();
+    errsigk_exit();
     return kEplSuccessful;
 }
 

@@ -643,8 +643,12 @@ tEplKernel dllk_updateFrameStatusRes(tEdrvTxBuffer* pTxBuffer_p, tNmtState nmtSt
 {
     tEplKernel      ret = kEplSuccessful;
     tEplFrame*      pTxFrame;
-    UINT32           sizeOfHistoryEntryField;
-    UINT32           sizeOfStatusEntryField;
+    UINT32          sizeOfHistoryEntryField;
+    UINT32          sizeOfStatusEntryField;
+    UINT32          offsetOfCurrentEntry;
+    UINT8           loopCount;
+    tEplErrHistoryEntry*    historyEntrySourceData;
+    tEplErrHistoryEntry*    historyEntryDestData;
 
     pTxFrame = (tEplFrame *) pTxBuffer_p->m_pbBuffer;
 
@@ -659,24 +663,49 @@ tEplKernel dllk_updateFrameStatusRes(tEdrvTxBuffer* pTxBuffer_p, tNmtState nmtSt
         sizeOfHistoryEntryField = dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfHistoryEntries
                                                                         * sizeof (tEplErrHistoryEntry);
         sizeOfStatusEntryField = dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfStatusEntries
-                * sizeof (tEplErrHistoryEntry);
+                                                                        * sizeof (tEplErrHistoryEntry);
 
         EPL_MEMSET(pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry, 0,
                                                     sizeOfStatusEntryField + sizeOfHistoryEntryField);
             if (dllkInstance_g.pCurrentErrStatusBuffer->m_fDataValid == TRUE)
             {
-    //TODO Frame transfer: memcpy to AmiSetByteToLe
-                if(dllkInstance_g.pCurrentErrStatusBuffer->m_pErrStatusEntry != NULL)
+                if(dllkInstance_g.pCurrentErrStatusBuffer->m_pErrStatusEntry != NULL) //redundant
                 {
-                    EPL_MEMCPY(pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry,
-                                        dllkInstance_g.pCurrentErrStatusBuffer->m_pErrStatusEntry,
-                                                                                    sizeOfStatusEntryField);
+                    for (loopCount = 0, offsetOfCurrentEntry = 0;
+                            loopCount < dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfStatusEntries;
+                                   loopCount++)
+                    {
+                        offsetOfCurrentEntry = loopCount * sizeof (tEplErrHistoryEntry);
+                        historyEntrySourceData = (tEplErrHistoryEntry*)((unsigned int)
+                                        dllkInstance_g.pCurrentErrStatusBuffer->m_pErrStatusEntry + offsetOfCurrentEntry);
+                        historyEntryDestData = &pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry
+                                                                                                                [loopCount];
+
+                        AmiSetDwordToLe(&historyEntryDestData->m_TimeStamp.m_dwNanoSec, historyEntrySourceData->m_TimeStamp.m_dwNanoSec);
+                        AmiSetDwordToLe(&historyEntryDestData->m_TimeStamp.m_dwSec, historyEntrySourceData->m_TimeStamp.m_dwSec);
+                        AmiSetByteToLe(&historyEntryDestData->m_abAddInfo, historyEntrySourceData->m_abAddInfo);
+                        AmiSetWordToLe(&historyEntryDestData->m_wEntryType, historyEntrySourceData->m_wEntryType);
+                        AmiSetWordToLe(&historyEntryDestData->m_wErrorCode, historyEntrySourceData->m_wErrorCode);
+                    }
                 }
-                if(dllkInstance_g.pCurrentErrStatusBuffer->m_pErrHistoryEntry != NULL)
+                if(dllkInstance_g.pCurrentErrStatusBuffer->m_pErrHistoryEntry != NULL) //redundant
                 {
-                    EPL_MEMCPY((pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry
-                          + sizeOfStatusEntryField),dllkInstance_g.pCurrentErrStatusBuffer->m_pErrHistoryEntry,
-                                                                                       sizeOfHistoryEntryField);
+                    for (loopCount = 0, offsetOfCurrentEntry = 0;
+                            loopCount <  dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfHistoryEntries;
+                                                                                                 loopCount++)
+                    {
+                        offsetOfCurrentEntry = loopCount * sizeof (tEplErrHistoryEntry);
+                        historyEntrySourceData = (tEplErrHistoryEntry*)((unsigned int)
+                                        dllkInstance_g.pCurrentErrStatusBuffer->m_pErrHistoryEntry + offsetOfCurrentEntry);
+                        historyEntryDestData = &pTxFrame->m_Data.m_Asnd.m_Payload.m_StatusResponse.m_le_aErrHistoryEntry
+                                                 [dllkInstance_g.pCurrentErrStatusBuffer->m_uiNumberOfStatusEntries + loopCount];
+
+                        AmiSetDwordToLe(&historyEntryDestData->m_TimeStamp.m_dwNanoSec, historyEntrySourceData->m_TimeStamp.m_dwNanoSec);
+                        AmiSetDwordToLe(&historyEntryDestData->m_TimeStamp.m_dwSec, historyEntrySourceData->m_TimeStamp.m_dwSec);
+                        AmiSetByteToLe(&historyEntryDestData->m_abAddInfo, historyEntrySourceData->m_abAddInfo);
+                        AmiSetWordToLe(&historyEntryDestData->m_wEntryType, historyEntrySourceData->m_wEntryType);
+                        AmiSetWordToLe(&historyEntryDestData->m_wErrorCode, historyEntrySourceData->m_wErrorCode);
+                    }
                 }
                 dllkInstance_g.pCurrentErrStatusBuffer->m_fDataValid = FALSE;
                 if (sizeOfStatusEntryField + sizeOfHistoryEntryField > 2)
